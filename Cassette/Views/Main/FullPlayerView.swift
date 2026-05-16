@@ -70,13 +70,14 @@ struct FullPlayerView: View {
                         .aspectRatio(1, contentMode: .fit)
                         .frame(maxWidth: 280)
                         .overlay {
-                            CoverArtView(id: coverArtId, size: 300)
+                            CoverArtView(id: coverArtId, size: 600)
                         }
                         .clipShape(RoundedRectangle(cornerRadius: CassetteCornerRadius.large))
                         .shadow(color: .black.opacity(0.3), radius: 30, y: 10)
-                        .scaleEffect(isPlaying ? 1.0 : 0.92)
+                        .scaleEffect(isPlaying ? 1.3 : 1)
                         .animation(.spring(response: 0.5, dampingFraction: 0.7), value: isPlaying)
                         .padding(.horizontal, CassetteSpacing.xl)
+                        .padding(.vertical, CassetteSpacing.xxxxl)
                         .contentShape(Rectangle())
                         .onTapGesture {
                             withAnimation(.smooth(duration: 0.3)) { showLyrics = true }
@@ -91,7 +92,7 @@ struct FullPlayerView: View {
                         secondaryContentColor: vm.secondaryContentColor,
                         glassTint: vm.glassTint
                     )
-                    .padding(.horizontal, CassetteSpacing.l)
+                    .padding(.horizontal, CassetteSpacing.xxl)
 
                     if !playerState.isLiveStream {
                         ScrubberView(
@@ -100,7 +101,7 @@ struct FullPlayerView: View {
                             contentColor: vm.contentColor,
                             secondaryContentColor: vm.secondaryContentColor
                         )
-                        .padding(.horizontal, CassetteSpacing.l)
+                        .padding(.horizontal, CassetteSpacing.xxl)
                         .padding(.top, CassetteSpacing.m)
                         .disabled(!playerState.isPlaybackAvailable)
                         .opacity(playerState.isPlaybackAvailable ? 1.0 : 0.4)
@@ -117,7 +118,7 @@ struct FullPlayerView: View {
 
                     VolumeSection(contentColor: vm.contentColor, secondaryContentColor: vm.secondaryContentColor)
                         .padding(.horizontal, CassetteSpacing.l)
-                        .padding(.top, CassetteSpacing.l)
+                        .padding(.top, CassetteSpacing.xxl)
 
                     Spacer(minLength: CassetteSpacing.l)
                 }
@@ -145,7 +146,8 @@ struct FullPlayerView: View {
                 showQueue: $showQueue,
                 isLiveStream: playerState.isLiveStream,
                 secondaryContentColor: vm.secondaryContentColor,
-                playerState: playerState
+                playerState: playerState,
+                contentColor: vm.contentColor
             )
             .padding(.top, CassetteSpacing.l)
 
@@ -250,7 +252,7 @@ private struct TrackInfoSection: View {
                             } label: {
                                 Text(artist)
                                     .font(.subheadline)
-                                    .foregroundStyle(Color.cassetteAccent)
+                                    .foregroundStyle(secondaryContentColor)
                                     .lineLimit(1)
                                     .truncationMode(.tail)
                             }
@@ -601,30 +603,37 @@ private struct BottomToolbar: View {
     let isLiveStream: Bool
     let secondaryContentColor: Color
     let playerState: PlayerState
+    let contentColor: Color
 
     var body: some View {
-        HStack(spacing: CassetteSpacing.xxxxl) {
+        HStack() {
+            Spacer()
+            
             if !isLiveStream {
                 Button {
                     withAnimation(.smooth(duration: 0.3)) { showLyrics.toggle() }
                 } label: {
                     Image(systemName: "quote.bubble")
                         .font(.title3)
-                        .foregroundStyle(showLyrics ? Color.cassetteAccent : secondaryContentColor)
-                        .frame(width: 44, height: 44)
+                        .foregroundStyle(showLyrics ? contentColor : secondaryContentColor)
+                        .frame(width: 48, height: 48)
                 }
                 .buttonStyle(.borderless)
                 .accessibilityLabel("Lyrics")
             }
+            
+            Spacer()
 
-            AirPlayRouteButton(tintColor: secondaryContentColor)
-                .frame(width: 44, height: 44)
+            AirPlayRouteButton(tintColor: contentColor)
+                .frame(width: 48, height: 48)
+            
+            Spacer()
 
             if !isLiveStream {
                 Button { showQueue = true } label: {
                     Image(systemName: "list.bullet")
                         .font(.title3)
-                        .foregroundStyle(secondaryContentColor)
+                        .foregroundStyle(contentColor)
                         .overlay(alignment: .topTrailing) {
                             if let badge = playerState.queueModeBadge {
                                 Image(systemName: badge)
@@ -638,12 +647,14 @@ private struct BottomToolbar: View {
                             }
                         }
                         .animation(.smooth(duration: 0.2), value: playerState.queueModeBadge)
-                        .frame(width: 44, height: 44)
+                        .frame(width: 48, height: 48)
                 }
                 .buttonStyle(.borderless)
                 .accessibilityLabel("Queue")
             }
-        }
+        
+        Spacer()
+        }.frame(maxWidth: .infinity)
     }
 }
 
@@ -683,9 +694,9 @@ private struct VolumeSection: View {
 
     var body: some View {
         #if os(iOS)
-        HStack(spacing: CassetteSpacing.m) {
+        HStack(spacing: CassetteSpacing.s) {
             Image(systemName: "speaker.fill")
-                .font(.caption)
+                .font(.cassetteCellSubtitle)
                 .foregroundStyle(secondaryContentColor)
                 .frame(width: 20)
                 .accessibilityHidden(true)
@@ -693,7 +704,7 @@ private struct VolumeSection: View {
             SystemVolumeView(contentColor: contentColor)
 
             Image(systemName: "speaker.wave.3.fill")
-                .font(.caption)
+                .font(.cassetteCellSubtitle)
                 .foregroundStyle(secondaryContentColor)
                 .frame(width: 20)
                 .accessibilityHidden(true)

@@ -208,7 +208,7 @@ struct AlbumDetailView: View {
                 } label: {
                     Image(systemName: "chevron.left")
                         .font(.body.weight(.semibold))
-                        .foregroundStyle(.primary)
+                        .foregroundStyle(.white)
                 }
             }
             ToolbarItem(placement: .primaryAction) {
@@ -223,7 +223,7 @@ struct AlbumDetailView: View {
                     }
                 } label: {
                     Image(systemName: isAlbumFavorite ? "star.fill" : "star")
-                        .foregroundStyle(isAlbumFavorite ? Color.cassetteAccent : .primary)
+                        .foregroundStyle(isAlbumFavorite ? .white : .primary)
                         .animation(.spring(response: 0.3, dampingFraction: 0.6), value: isAlbumFavorite)
                 }
                 .disabled(!isOnline)
@@ -351,7 +351,7 @@ struct AlbumDetailView: View {
                         } label: {
                             Text(artist)
                                 .font(.cassetteCellSubtitle)
-                                .foregroundStyle(Color.cassetteAccent)
+                                .foregroundStyle(headerSecondaryColor)
                         }
                         .buttonStyle(.plain)
                     } else {
@@ -389,7 +389,7 @@ struct AlbumDetailView: View {
                 } label: {
                     Image(systemName: "shuffle")
                         .font(.cassetteCellTitle)
-                        .foregroundStyle(Color.cassetteAccent)
+                        .foregroundStyle(.white)
                         .cassetteGlassButton(size: 44)
                 }
                 .disabled(songs.isEmpty)
@@ -425,7 +425,7 @@ struct AlbumDetailView: View {
                             Button { Task { await vm.cancelAlbumDownload() } } label: {
                                 Image(systemName: "xmark")
                                     .font(.cassetteCellTitle)
-                                    .foregroundStyle(Color.cassetteAccent)
+                                    .foregroundStyle(.white)
                                     .cassetteGlassButton(size: 44)
                             }
                         } else {
@@ -434,7 +434,7 @@ struct AlbumDetailView: View {
                                 Button { Task { await vm.downloadAlbum() } } label: {
                                     Image(systemName: "arrow.down.circle")
                                         .font(.cassetteCellTitle)
-                                        .foregroundStyle(Color.cassetteAccent)
+                                        .foregroundStyle(.white)
                                         .cassetteGlassButton(size: 44)
                                 }
                                 .disabled(vm.songs.isEmpty)
@@ -442,7 +442,7 @@ struct AlbumDetailView: View {
                                 Button { Task { await vm.downloadMissingTracks() } } label: {
                                     Image(systemName: "arrow.down.circle.dotted")
                                         .font(.cassetteCellTitle)
-                                        .foregroundStyle(Color.cassetteAccent)
+                                        .foregroundStyle(.white)
                                         .cassetteGlassButton(size: 44)
                                 }
                             case .fullyDownloaded:
@@ -452,7 +452,7 @@ struct AlbumDetailView: View {
                                 } label: {
                                     Image(systemName: "trash")
                                         .font(.cassetteCellTitle)
-                                        .foregroundStyle(Color.cassetteAccent)
+                                        .foregroundStyle(.white)
                                         .cassetteGlassButton(size: 44)
                                 }
                             }
@@ -461,7 +461,7 @@ struct AlbumDetailView: View {
                         Button { } label: {
                             Image(systemName: "arrow.down.circle")
                                 .font(.cassetteCellTitle)
-                                .foregroundStyle(Color.cassetteAccent)
+                                .foregroundStyle(.white)
                                 .cassetteGlassButton(size: 44)
                         }
                         .disabled(true)

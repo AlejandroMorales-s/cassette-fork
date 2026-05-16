@@ -249,7 +249,7 @@ struct PlaylistDetailView: View {
                 } label: {
                     Image(systemName: "chevron.left")
                         .font(.body.weight(.semibold))
-                        .foregroundStyle(.primary)
+                        .foregroundStyle(.white)
                 }
             }
         }
@@ -266,7 +266,7 @@ struct PlaylistDetailView: View {
                     enterEditMode()
                 } label: {
                     Image(systemName: "pencil")
-                        .foregroundStyle(CassetteColors.accent)
+                        .foregroundStyle(.white)
                 }
                 .disabled(container?.serverState.isOnline != true || viewModel?.playlistDetail == nil)
             }
@@ -503,7 +503,7 @@ struct PlaylistDetailView: View {
                     } label: {
                         Image(systemName: "shuffle")
                             .font(.cassetteCellTitle)
-                            .foregroundStyle(Color.cassetteAccent)
+                            .foregroundStyle(.white)
                             .cassetteGlassButton(size: 44)
                     }
                     .disabled(vm?.songs.isEmpty != false)
@@ -523,7 +523,7 @@ struct PlaylistDetailView: View {
                                 Button { Task { await vm.cancelPlaylistDownload() } } label: {
                                     Image(systemName: "xmark")
                                         .font(.cassetteCellTitle)
-                                        .foregroundStyle(Color.cassetteAccent)
+                                        .foregroundStyle(.white)
                                         .cassetteGlassButton(size: 44)
                                 }
                             } else {
@@ -532,7 +532,7 @@ struct PlaylistDetailView: View {
                                     Button { Task { await vm.downloadPlaylist() } } label: {
                                         Image(systemName: "arrow.down.circle")
                                             .font(.cassetteCellTitle)
-                                            .foregroundStyle(Color.cassetteAccent)
+                                            .foregroundStyle(.white)
                                             .cassetteGlassButton(size: 44)
                                     }
                                     .disabled(vm.songs.isEmpty)
@@ -540,7 +540,7 @@ struct PlaylistDetailView: View {
                                     Button { Task { await vm.downloadMissingTracks() } } label: {
                                         Image(systemName: "arrow.down.circle.dotted")
                                             .font(.cassetteCellTitle)
-                                            .foregroundStyle(Color.cassetteAccent)
+                                            .foregroundStyle(.white)
                                             .cassetteGlassButton(size: 44)
                                     }
                                 case .fullyDownloaded:
@@ -550,7 +550,7 @@ struct PlaylistDetailView: View {
                                     } label: {
                                         Image(systemName: "trash")
                                             .font(.cassetteCellTitle)
-                                            .foregroundStyle(Color.cassetteAccent)
+                                            .foregroundStyle(.white)
                                             .cassetteGlassButton(size: 44)
                                     }
                                 }
@@ -559,7 +559,7 @@ struct PlaylistDetailView: View {
                             Button { } label: {
                                 Image(systemName: "arrow.down.circle")
                                     .font(.cassetteCellTitle)
-                                    .foregroundStyle(Color.cassetteAccent)
+                                    .foregroundStyle(.white)
                                     .cassetteGlassButton(size: 44)
                             }
                             .disabled(true)
