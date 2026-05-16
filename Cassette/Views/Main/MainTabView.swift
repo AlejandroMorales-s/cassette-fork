@@ -64,7 +64,7 @@ struct MainTabView: View {
                 .searchable(text: $searchText, prompt: "Artists, albums, songs\u{2026}")
             }
         }
-        .accentColor(.cassetteAccent)
+        .accentColor(.white)
 
         .task(id: container?.serverState.isOnline) {
             guard container?.serverState.isOnline == true else { return }

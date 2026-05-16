@@ -183,7 +183,7 @@ struct MiniPlayerAccessoryView: View {
             }
         } label: {
             Image(systemName: isPlaying ? "pause.fill" : "play.fill")
-                .font(.title3)
+                .font(.largeTitle)
                 .foregroundStyle(typoColor)
                 .opacity(isAvailable ? 1.0 : 0.3)
         }
