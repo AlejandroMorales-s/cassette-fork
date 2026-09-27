@@ -2215,10 +2215,9 @@ actor PlayerService: PlayerServiceProtocol {
 
     /// Pushes a position-only snapshot when track metadata hasn't changed (pause/resume/seek).
     private func pushPositionSnapshot(rate: Float? = nil) async {
-        let (track, position, playbackState, duration) = await MainActor.run {
-            (state.currentTrack, state.position, state.playbackState, state.duration)
+        let (track, isLiveStream, position, playbackState, duration) = await MainActor.run {
+            (state.currentTrack, state.isLiveStream, state.position, state.playbackState, state.duration)
         }
-        guard let track else { return }
 
         let resolvedRate: Float
         if let rate {
@@ -2227,6 +2226,15 @@ actor PlayerService: PlayerServiceProtocol {
             resolvedRate = 1.0
         } else {
             resolvedRate = 0.0
+        }
+
+        guard let track else {
+            // A radio has no track, position or duration, but its pause and resume must still reach
+            // the lock screen: without the rate, a paused radio keeps showing as playing.
+            if isLiveStream {
+                await nowPlayingService?.pushPlaybackRate(resolvedRate)
+            }
+            return
         }
 
         let clampedPosition = duration > 0 ? min(position, duration) : position
@@ -2359,7 +2367,8 @@ extension PlayerService {
         }
     }
 
-    private func handleAudioSessionInterruption(_ notification: Notification, seq: Int = 0) async {
+    // internal: accessible from tests via @testable import
+    func handleAudioSessionInterruption(_ notification: Notification, seq: Int = 0) async {
         guard let typeValue = notification.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt,
               let type = AVAudioSession.InterruptionType(rawValue: typeValue) else {
             AudioSessionLog.log("[INTERRUPTION #\(seq)] unparseable type — ignored")
@@ -2385,13 +2394,16 @@ extension PlayerService {
             audioPlayer.pause()
             await MainActor.run { state.playbackState = .paused }
             stopProgressTimer()
+            // Same rate 0 as pause(): without it the lock screen, and a car's screen, keep showing
+            // "playing", and the first press on play is spent sending a pause.
+            await pushPositionSnapshot(rate: 0.0)
             await saveSession()
             let pauseTrack = await MainActor.run { state.currentTrack }
             if let ws = widgetSyncService {
                 Task { [weak ws] in await ws?.onPlayStateChanged(isPlaying: false, currentSong: pauseTrack) }
             }
             Logger.player.info("[INTERRUPTION] began — paused playback")
-            AudioSessionLog.log("[INTERRUPTION #\(seq)] began — paused engine=\(audioPlayer.state) engineRunning=\(audioPlayer.isEngineRunning) (now-playing rate left untouched)")
+            AudioSessionLog.log("[INTERRUPTION #\(seq)] began — paused engine=\(audioPlayer.state) engineRunning=\(audioPlayer.isEngineRunning) now-playing rate=0 pushed")
 
         case .ended:
             let shouldResume = (notification.userInfo?[AVAudioSessionInterruptionOptionKey] as? UInt)
