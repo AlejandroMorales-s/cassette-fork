@@ -56,6 +56,9 @@ Testing parallelises tests, so each test must own its own in-memory store.
 3. `MediaResolver` is the **single entry point** for playable URLs.
    `PlayerService` always asks `MediaResolver` — never SwiftSonic directly.
 4. All dependencies injected via `init`. No singletons except `AppContainer`.
+   Its one static entry point, `AppContainer.launched()`, is called only by scene entry points
+   (`CassetteApp`, and the CarPlay scene delegate). Services, view models and views never reach
+   for it: they get the container, or what they need from it, through `init` or the environment.
 5. `NowPlayingService` is active from v1 (lockscreen / Control Center / AirPods).
 
 ### nonisolated on static properties in system type extensions

@@ -73,6 +73,15 @@ struct CassetteApp: App {
         request.earliestBeginDate = Date().addingTimeInterval(24 * 3600)
         try? BGTaskScheduler.shared.submit(request)
     }
+
+    /// Hands the launched container to the BGTask handler and schedules the next run. Called once,
+    /// from the shared launch, so it happens even when CarPlay starts the process without a window.
+    static func attachBackgroundTasks(to container: AppContainer) {
+        _bgTaskService = container.wrappedPlaylistService
+        _bgTaskServerState = container.serverState
+        _bgTaskMoodService = container.moodPlaylistService
+        scheduleWrappedUpdate()
+    }
     #endif
 
     var body: some Scene {
@@ -111,46 +120,11 @@ struct CassetteApp: App {
                 #endif
             }
             .task {
+                // The launch itself is shared with any other scene (CarPlay can start the process
+                // without this window) and runs once per process: see AppLauncher. Reconnectivity
+                // handling moved there too — it used to be a `.task(id: isOnline)` on this view.
                 guard container == nil else { return }
-                Logger.boot.notice("🟡 AppContainer init start")
-                guard let newContainer = try? AppContainer() else { return }
-                Logger.boot.notice("🟡 setup() start")
-                await newContainer.setup()
-                // Start reachability before the UI is interactive so serverState.isOnline
-                // is corrected from its optimistic default before any view loads data.
-                newContainer.networkMonitor.start(serverState: newContainer.serverState)
-                Logger.boot.notice("🟡 setup() done — nowPlayingService.start()")
-                await newContainer.nowPlayingService.start()
-                await AppContainer.invalidateCoverArtCacheIfNeeded(artworkCache: newContainer.artworkImageCache)
-                Task { await AppContainer.migrateAudioExtensionsIfNeeded(modelContainer: newContainer.modelContainer, audioStreamCache: newContainer.audioStreamCache) }
-                Task { await AppContainer.migrateM4AFaststartIfNeeded(modelContainer: newContainer.modelContainer) }
-                Logger.boot.notice("🟡 container = newContainer (views will render)")
-                container = newContainer
-                Logger.boot.notice("🟡 loadPersistedState() start")
-                // loadPersistedState must complete before restoreSession so the active
-                // server is known when prepareCurrentTrackForRestoration resolves the URL.
-                await newContainer.serverService.loadPersistedState()
-                Logger.boot.notice("🟡 loadPersistedState() done — activeServer = \(String(describing: newContainer.serverState.activeServer?.baseURL), privacy: .public)")
-                await newContainer.playerService.restoreSession()
-                Task { await runCoverArtGarbageCollection(container: newContainer) }
-                // After the collector, so it never races the pass that decides what is orphaned.
-                Task { await runOfflineCoverHeal(container: newContainer) }
-                // Cold start fallback: primary trigger for Wrapped updates (BGTask is best-effort).
-                // Fire-and-forget — must never block app launch.
-                Task { await runWrappedUpdate(container: newContainer) }
-                Task { await runMoodUpdate(container: newContainer) }
-                Task { await newContainer.widgetSyncService.fullSync() }
-                #if os(iOS)
-                CassetteApp._bgTaskService = newContainer.wrappedPlaylistService
-                CassetteApp._bgTaskServerState = newContainer.serverState
-                CassetteApp._bgTaskMoodService = newContainer.moodPlaylistService
-                CassetteApp.scheduleWrappedUpdate()
-                #endif
-            }
-            .task(id: container?.serverState.isOnline) {
-                guard let c = container, c.serverState.isOnline else { return }
-                await c.playerService.handleNetworkRestored()
-                await c.listenBrainzService.flushOfflineQueue()
+                container = await AppContainer.launched()
             }
             #if os(macOS)
             .frame(minHeight: 580)
@@ -229,113 +203,5 @@ struct CassetteApp: App {
         .defaultPosition(.topTrailing)
         .restorationBehavior(.disabled)
         #endif
-    }
-
-    // MARK: - Cover art garbage collection
-
-    @MainActor
-    private func runCoverArtGarbageCollection(container: AppContainer) async {
-        let context = container.modelContainer.mainContext
-        var referencedIds: Set<String> = []
-
-        let albums = (try? context.fetch(FetchDescriptor<DownloadedAlbum>())) ?? []
-        for album in albums {
-            if let id = album.coverArtId { referencedIds.insert(id) }
-        }
-
-        let tracks = (try? context.fetch(FetchDescriptor<DownloadedTrack>())) ?? []
-        for track in tracks {
-            if let id = track.coverArtId { referencedIds.insert(id) }
-        }
-
-        let playlists = (try? context.fetch(FetchDescriptor<DownloadedPlaylist>())) ?? []
-        for playlist in playlists {
-            if let id = playlist.coverArtId { referencedIds.insert(id) }
-        }
-
-        let pinned = (try? context.fetch(FetchDescriptor<PinnedItem>())) ?? []
-        for item in pinned {
-            if let id = item.coverArtId { referencedIds.insert(id) }
-        }
-
-        await container.downloadService.garbageCollectOrphanedCovers(referencedIds: referencedIds)
-    }
-
-    /// Restores offline cover art that is referenced by a download but missing from disk.
-    ///
-    /// One detached pass per launch, never awaited by launch. A shipped sweep deleted these
-    /// files wholesale for a time and only a download writes them, so without this a library
-    /// damaged then stays damaged.
-    @MainActor
-    private func runOfflineCoverHeal(container: AppContainer) async {
-        let state = container.serverState
-
-        // isOnline and isExpensive both start optimistic, so reading them now would be reading
-        // a guess: offline, the pass would fire every request and fail them all; on cellular
-        // with the setting off it would ignore the user's choice. Wait for the first real path
-        // instead, and give up rather than act on the defaults if it never arrives.
-        let deadline = Date().addingTimeInterval(10)
-        while !state.hasResolvedNetworkPath {
-            guard Date() < deadline else {
-                Logger.artworkCache.debug("[HEAL] Skipped — no network path resolved within 10s.")
-                return
-            }
-            try? await Task.sleep(for: .milliseconds(100))
-        }
-
-        guard state.isOnline else { return }
-        // Same rule the player's prefetch follows; no separate setting for this.
-        guard PlayerService.shouldProceedWithPrefetch(
-            isExpensive: state.isExpensive,
-            allowCellular: container.cacheSettings.cacheOverCellular
-        ) else {
-            Logger.artworkCache.debug("[HEAL] Skipped — metered connection and cellular caching is off.")
-            return
-        }
-
-        // Albums, tracks and playlists only. PinnedItem cover ids are in the collector's
-        // referenced set to protect a file a download may have written, but nothing writes one
-        // for a pin on its own — healing them would fetch files the app never creates.
-        let context = container.modelContainer.mainContext
-        var referencedIds: Set<String> = []
-        for album in (try? context.fetch(FetchDescriptor<DownloadedAlbum>())) ?? [] {
-            if let id = album.coverArtId { referencedIds.insert(id) }
-        }
-        for track in (try? context.fetch(FetchDescriptor<DownloadedTrack>())) ?? [] {
-            if let id = track.coverArtId { referencedIds.insert(id) }
-        }
-        for playlist in (try? context.fetch(FetchDescriptor<DownloadedPlaylist>())) ?? [] {
-            if let id = playlist.coverArtId { referencedIds.insert(id) }
-        }
-        guard !referencedIds.isEmpty else { return }
-
-        await container.downloadService.healMissingCovers(referencedIds: referencedIds)
-    }
-
-    // MARK: - Wrapped update
-
-    @MainActor
-    private func runWrappedUpdate(container: AppContainer) async {
-        guard let serverId = container.serverState.activeServer?.id.uuidString else { return }
-        await container.wrappedPlaylistService.handleYearTransitionIfNeeded(serverId: serverId, calendar: .current)
-        let result = await container.wrappedPlaylistService.runYearlyPlaylistSyncIfNeeded(serverId: serverId, calendar: .current)
-        Logger.wrapped.info("Cold start result: \(String(describing: result), privacy: .public)")
-    }
-
-    // MARK: - Mood playlists
-
-    /// Cold-start catch-up for the weekly mood refresh. This, not the BGTask, is what users
-    /// actually experience: iOS grants background time at its own discretion, so the refresh lands
-    /// on the first launch on or after Wednesday. A no-op on every other launch.
-    @MainActor
-    private func runMoodUpdate(container: AppContainer) async {
-        guard let serverId = container.serverState.activeServer?.id.uuidString else { return }
-        // Wrapped in a background assertion because this is the one path that can start with
-        // nothing playing: without it, backgrounding the app a second after launch freezes the sync
-        // mid-flight. Progress is per-mood, so an interrupted run still resumes where it stopped.
-        let result = await BackgroundActivity.run("mood-playlists") {
-            await container.moodPlaylistService.runWeeklySyncIfNeeded(serverId: serverId, calendar: .current)
-        }
-        Logger.moodPlaylists.info("Cold start result: \(String(describing: result), privacy: .public)")
     }
 }
