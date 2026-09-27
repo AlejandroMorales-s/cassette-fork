@@ -12,10 +12,26 @@ on:
     branches: [main]
   workflow_dispatch: {}
 
-# A new push to a pull request supersedes the run in flight.
+# A new push to a pull request supersedes the run in flight. Pushes to `main` never
+# supersede each other.
+#
+# Every non-PR event keys the group on `github.run_id`, which is unique per run, so no two
+# `main` runs ever share a group — they cannot cancel each other and cannot queue behind
+# each other either. `cancel-in-progress` then states the same rule directly, so neither
+# half depends on the other being read correctly.
+#
+# Both halves are needed. Sharing one group per branch and only setting
+# `cancel-in-progress: false` is not enough: GitHub keeps a single pending run per group and
+# cancels the older one as soon as a third arrives, so merges landing together would still
+# lose a run — just at a different moment.
+#
+# This is not hypothetical. Two merges seconds apart shared the group `ci-CI-refs/heads/main`
+# and the second cancelled the first. A cancelled run reports no failure, so a break on
+# `main` stayed invisible for four and a half days and the blame landed on an unrelated
+# documentation PR.
 concurrency:
-  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
