@@ -66,18 +66,35 @@ jobs:
           key: spm-${{ runner.os }}-${{ hashFiles('**/Package.resolved') }}
           restore-keys: spm-${{ runner.os }}-
 
-      - name: Build
+      # `-scheme Cassette ... build` compiles the app and the widgets, and NOT the test
+      # target — so this job stayed green on a test-target break and a green "Build iOS"
+      # meant less than it looked like it meant. The PSDownloadStub break is the case in
+      # point: only the test job could fail on it, and that run had been cancelled.
+      #
+      # The test scheme with `build-for-testing` compiles app, widgets AND tests, so the
+      # check now covers what its name suggests. Measured cost of the extra target, three
+      # clean runs each, warm SPM cache, local M-series: iOS 27.7s -> 29.7s (+2.0s), macOS
+      # 28.3s -> 31.3s (+3.0s) — 7-11%. On CI it adds no wall-clock at all: these jobs run
+      # beside the test job, and they finish in 2.5-3.5 min against its 5-7 min, so the
+      # extra ~10-25s is absorbed by headroom that was already there.
+      #
+      # `build-for-testing` still writes Cassette.app to Build/Products, which is what the
+      # localization check below reads; the test bundle lands in its PlugIns.
+      #
+      # The job name is deliberately unchanged: it is a required check in branch protection,
+      # and renaming it would silently stop that rule matching anything.
+      - name: Build app, widgets and test target
         run: |
           set -o pipefail
           xcodebuild \
             -project "$PROJECT" \
-            -scheme Cassette \
+            -scheme CassetteTests \
             -destination '${{ matrix.destination }}' \
             -configuration Debug \
             -clonedSourcePackagesDirPath .spm \
             -derivedDataPath build/DerivedData \
             CODE_SIGNING_ALLOWED=NO \
-            build 2>&1 | tee build.log
+            build-for-testing 2>&1 | tee build.log
 
       - name: Fail on compiler warnings
         run: .github/scripts/check-warnings.sh build.log
