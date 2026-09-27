@@ -18,13 +18,25 @@ struct RootView: View {
                 #if os(macOS)
                 RootViewMacOS()
                     .accentColor(.cassetteAccent)
+                    .launchedScreen("root.main")
                 #else
                 MainTabView()
                     .accentColor(.cassetteAccent)
+                    .launchedScreen("root.main")
                 #endif
             } else {
                 OnboardingView()
+                    .launchedScreen("root.onboarding")
             }
         }
+    }
+}
+
+private extension View {
+    /// Marks the first real screen after launch, for the UI launch test. The identifier sits on a
+    /// containing element so it does not overwrite the children's own accessibility.
+    func launchedScreen(_ identifier: String) -> some View {
+        accessibilityElement(children: .contain)
+            .accessibilityIdentifier(identifier)
     }
 }
