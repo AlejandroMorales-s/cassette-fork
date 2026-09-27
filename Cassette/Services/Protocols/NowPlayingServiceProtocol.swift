@@ -26,4 +26,9 @@ protocol NowPlayingServiceProtocol: AnyObject, Sendable {
     /// touching title, artist, or artwork. Called on every periodic tick to prevent iOS
     /// extrapolation drift on the lock screen.
     func pushPosition(elapsed: TimeInterval, rate: Float, duration: TimeInterval) async
+
+    /// Merges only the playback rate into the existing nowPlayingInfo dict. For a live stream,
+    /// which has no position or duration, this is what tells the lock screen (and CarPlay) that
+    /// playback paused or resumed.
+    func pushPlaybackRate(_ rate: Float) async
 }

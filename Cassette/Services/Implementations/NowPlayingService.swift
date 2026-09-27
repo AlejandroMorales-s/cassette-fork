@@ -311,6 +311,18 @@ actor NowPlayingService: NowPlayingServiceProtocol {
         }
     }
 
+    func pushPlaybackRate(_ rate: Float) async {
+        await MainActor.run {
+            // Nothing on screen yet means nothing to pause: a rate alone would publish an empty entry.
+            guard var info = MPNowPlayingInfoCenter.default().nowPlayingInfo else { return }
+            info[MPNowPlayingInfoPropertyPlaybackRate] = rate
+            MPNowPlayingInfoCenter.default().nowPlayingInfo = info
+            #if os(macOS)
+            MPNowPlayingInfoCenter.default().playbackState = rate > 0 ? .playing : .paused
+            #endif
+        }
+    }
+
     // MARK: - Favourite
 
     /// Stars or unstars whatever is playing, driven from a remote surface (CarPlay, Watch).
